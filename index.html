@@ -41,6 +41,26 @@ body{max-width:100vw}.wrap{max-width:1160px}.snap-mobile-only{display:none}
 @media(max-width:390px){.hero h1{font-size:30px}.research-copy h2{font-size:36px}.cmp-card{flex-basis:calc(100vw - 48px);padding:24px 20px}.cmp-val,.cmp-label{font-size:18px}.ing-modal-item{grid-template-columns:78px 1fr}.ing-modal-item img{width:74px;height:74px}.ing-modal-item p{font-size:17px}.ing-modal-item h3{font-size:20px}.sticky-cta .btn{font-size:14px}.sticky-cta img{width:74px}}
 
 </style>
+
+<!-- TikTok Pixel -->
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;
+  var ttq=w[t]=w[t]||[];
+  ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"];
+  ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};
+  for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);
+  ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};
+  ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";
+    ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=r;ttq._t=ttq._t||{};ttq._t[e]=+new Date;
+    ttq._o=ttq._o||{};ttq._o[e]=n||{};
+    var a=d.createElement("script");a.type="text/javascript";a.async=!0;a.src=r+"?sdkid="+e+"&lib="+t;
+    var s=d.getElementsByTagName("script")[0];s.parentNode.insertBefore(a,s)
+  };
+  ttq.load('D2KM92JC77U9PLHEPTMG');
+  ttq.page();
+}(window, document, 'ttq');
+</script>
 </head>
 <body>
 <nav class="nav" id="floatingNav"><img src="images/snap-logo-no-r.svg" alt="SNAP"></nav>
@@ -190,9 +210,55 @@ if(pickerCta){pickerCta.addEventListener('click',()=>{selectedBox.textContent=`V
 document.querySelectorAll('[data-product]').forEach(b=>{if(b.id==='pickerCta')return;b.addEventListener('click',()=>{order.product=b.dataset.product;order.price=Number(b.dataset.price);order.quantity=1;order.upsell=false;order.upsellPrice=0;order.totalPrice=order.price;selectedBox.textContent=`Vybráno: ${order.product} — ${order.price.toLocaleString('cs-CZ')} CZK`;modal.classList.add('show')})});
 
 document.getElementById('closeModal').onclick=()=>modal.classList.remove('show');
-document.getElementById('orderForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target);order.name=fd.get('name').trim();order.phone=fd.get('phone').trim();order.street=fd.get('street').trim();order.city=fd.get('city').trim();order.zip=fd.get('zip').trim();modal.classList.remove('show');upsell.classList.add('show')});
-function fireOrder(){order.totalPrice=order.price+order.upsellPrice;console.log('SNAP COD ORDER',order);/* TODO: Apps Script webhook goes here */upsell.classList.remove('show');thankyou.classList.add('show')}
+const SHEET_WEBHOOK_URL='https://script.google.com/macros/s/AKfycbwKx4uRHk4F4dow_RVydN0K2R2wWTeQSWhcumFb9rjOTwReuZ9nHNdgSvOz2tt7df5O/exec';
+let orderFinalized=false,purchaseEventFired=false,upsellFallbackTimer=null;
+function buildOrderPayload(){
+  order.totalPrice=order.price+order.upsellPrice;
+  const qty=order.upsell?2:1;
+  return {
+    sku:order.product==='TRIO Bundle'?(order.upsell?'SNAP-TRIO-BUNDLE-X2':'SNAP-TRIO-BUNDLE'):'SNAP-'+String(order.product||'PRODUCT').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,''),
+    price:order.totalPrice,
+    customer_name:order.name,
+    customer_phone:order.phone,
+    city:order.city,
+    zip_code:order.zip,
+    customer_address:order.street,
+    customer_email:'',
+    quantity:qty,
+    note:order.upsell?`Product: ${order.product} | Upsell accepted: YES | Main item: ${order.price} CZK | Extra TRIO Bundle: ${order.upsellPrice} CZK | Total: ${order.totalPrice} CZK`:`Product: ${order.product} | Upsell accepted: NO | Total: ${order.totalPrice} CZK`,
+    date:new Date().toISOString()
+  };
+}
+function sendOrderToSheet(payload,useBeacon){
+  const body=JSON.stringify(payload);
+  if(useBeacon&&navigator.sendBeacon){
+    try{navigator.sendBeacon(SHEET_WEBHOOK_URL,new Blob([body],{type:'text/plain;charset=utf-8'}));return}catch(e){}
+  }
+  fetch(SHEET_WEBHOOK_URL,{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'text/plain;charset=utf-8'},body}).catch(function(error){console.error('Google Sheet error:',error)});
+}
+function firePurchase(payload){
+  if(purchaseEventFired||typeof ttq==='undefined')return;
+  purchaseEventFired=true;
+  ttq.track('Purchase',{content_type:'product',content_id:payload.sku,content_name:order.product,quantity:payload.quantity,value:Number(payload.price),currency:'CZK'});
+  console.log('TikTok Purchase fired',payload);
+}
+function finalizeOrder(useBeacon){
+  if(orderFinalized)return;
+  orderFinalized=true;
+  if(upsellFallbackTimer)clearTimeout(upsellFallbackTimer);
+  const payload=buildOrderPayload();
+  console.log('SNAP COD ORDER',payload);
+  sendOrderToSheet(payload,useBeacon);
+  firePurchase(payload);
+}
+function fireOrder(){
+  finalizeOrder(false);
+  upsell.classList.remove('show');
+  thankyou.classList.add('show');
+}
+document.getElementById('orderForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target);order.name=fd.get('name').trim();order.phone=fd.get('phone').trim();order.street=fd.get('street').trim();order.city=fd.get('city').trim();order.zip=fd.get('zip').trim();order.upsell=false;order.upsellPrice=0;modal.classList.remove('show');upsell.classList.add('show');if(upsellFallbackTimer)clearTimeout(upsellFallbackTimer);upsellFallbackTimer=setTimeout(()=>{if(!orderFinalized&&upsell.classList.contains('show'))fireOrder()},30000)});
 document.getElementById('yesUpsell').onclick=()=>{order.upsell=true;order.upsellPrice=745;fireOrder()};document.getElementById('noUpsell').onclick=()=>{order.upsell=false;order.upsellPrice=0;fireOrder()};
+window.addEventListener('pagehide',()=>{if(!orderFinalized&&upsell.classList.contains('show')){order.upsell=false;order.upsellPrice=0;finalizeOrder(true)}});
 const ingModal=document.getElementById('ingModal'),tabs=[...document.querySelectorAll('.ing-tab')],panels=[...document.querySelectorAll('.ing-panel')];let activePanel=0;function setPanel(i){activePanel=(i+panels.length)%panels.length;tabs.forEach((t,n)=>t.classList.toggle('active',n===activePanel));panels.forEach((p,n)=>p.classList.toggle('active',n===activePanel))}document.getElementById('openIngredients').onclick=()=>ingModal.classList.add('show');document.getElementById('closeIngredients').onclick=()=>ingModal.classList.remove('show');document.getElementById('ingPrev').onclick=()=>setPanel(activePanel-1);document.getElementById('ingNext').onclick=()=>setPanel(activePanel+1);tabs.forEach((t,i)=>t.onclick=()=>setPanel(i));ingModal.addEventListener('click',e=>{if(e.target===ingModal)ingModal.classList.remove('show')});
 const cmp=document.getElementById('compareSlider'),dot1=document.getElementById('dot1'),dot2=document.getElementById('dot2');
 const cmpCards=[...cmp.querySelectorAll('.cmp-card')];function updateCompare(){const center=cmp.scrollLeft+cmp.clientWidth/2;let active=0,best=1e9;cmpCards.forEach((c,i)=>{const mid=c.offsetLeft+c.offsetWidth/2;const d=Math.abs(center-mid);if(d<best){best=d;active=i}});cmpCards.forEach((c,i)=>c.classList.toggle('is-active',i===active));dot1.classList.toggle('active',active===0);dot2.classList.toggle('active',active===1)}cmp.addEventListener('scroll',()=>requestAnimationFrame(updateCompare),{passive:true});setTimeout(updateCompare,80);
