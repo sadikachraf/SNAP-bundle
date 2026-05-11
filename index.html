@@ -61,6 +61,24 @@ body{max-width:100vw}.wrap{max-width:1160px}.snap-mobile-only{display:none}
   ttq.page();
 }(window, document, 'ttq');
 </script>
+
+<!-- Meta Pixel -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '778731385018899');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=778731385018899&ev=PageView&noscript=1"
+/></noscript>
+
 </head>
 <body>
 <nav class="nav" id="floatingNav"><img src="images/snap-logo-no-r.svg" alt="SNAP"></nav>
@@ -211,7 +229,7 @@ document.querySelectorAll('[data-product]').forEach(b=>{if(b.id==='pickerCta')re
 
 document.getElementById('closeModal').onclick=()=>modal.classList.remove('show');
 const SHEET_WEBHOOK_URL='https://script.google.com/macros/s/AKfycbwKx4uRHk4F4dow_RVydN0K2R2wWTeQSWhcumFb9rjOTwReuZ9nHNdgSvOz2tt7df5O/exec';
-let orderFinalized=false,purchaseEventFired=false,upsellFallbackTimer=null;
+let orderFinalized=false,purchaseEventFired=false,metaPurchaseEventFired=false,upsellFallbackTimer=null;
 function getProductSku(product){
   const skuMap={
     'Testo Booster':'PMLD-1748',
@@ -246,10 +264,16 @@ function sendOrderToSheet(payload,useBeacon){
   fetch(SHEET_WEBHOOK_URL,{method:'POST',mode:'no-cors',keepalive:true,headers:{'Content-Type':'text/plain;charset=utf-8'},body}).catch(function(error){console.error('Google Sheet error:',error)});
 }
 function firePurchase(payload){
-  if(purchaseEventFired||typeof ttq==='undefined')return;
-  purchaseEventFired=true;
-  ttq.track('Purchase',{content_type:'product',content_id:payload.sku,content_name:order.product,quantity:payload.quantity,value:Number(payload.price),currency:'CZK'});
-  console.log('TikTok Purchase fired',payload);
+  if(!purchaseEventFired&&typeof ttq!=='undefined'){
+    purchaseEventFired=true;
+    ttq.track('Purchase',{content_type:'product',content_id:payload.sku,content_name:order.product,quantity:payload.quantity,value:Number(payload.price),currency:'CZK'});
+    console.log('TikTok Purchase fired',payload);
+  }
+  if(!metaPurchaseEventFired&&typeof fbq!=='undefined'){
+    metaPurchaseEventFired=true;
+    fbq('track','Purchase',{content_type:'product',content_ids:[payload.sku],content_name:order.product,num_items:payload.quantity,value:Number(payload.price),currency:'CZK'});
+    console.log('Meta Purchase fired',payload);
+  }
 }
 function finalizeOrder(useBeacon){
   if(orderFinalized)return;
