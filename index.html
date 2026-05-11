@@ -228,7 +228,7 @@ if(pickerCta){pickerCta.addEventListener('click',()=>{selectedBox.textContent=`V
 document.querySelectorAll('[data-product]').forEach(b=>{if(b.id==='pickerCta')return;b.addEventListener('click',()=>{order.product=b.dataset.product;order.price=Number(b.dataset.price);order.quantity=1;order.upsell=false;order.upsellPrice=0;order.totalPrice=order.price;selectedBox.textContent=`Vybráno: ${order.product} — ${order.price.toLocaleString('cs-CZ')} CZK`;modal.classList.add('show')})});
 
 document.getElementById('closeModal').onclick=()=>modal.classList.remove('show');
-const SHEET_WEBHOOK_URL='https://script.google.com/macros/s/AKfycbwKx4uRHk4F4dow_RVydN0K2R2wWTeQSWhcumFb9rjOTwReuZ9nHNdgSvOz2tt7df5O/exec';
+const SHEET_WEBHOOK_URL='https://script.google.com/macros/s/AKfycbyj1TjsT3dMKxUWJwgPR0wtdS1IQngab_-nhMXK-gd5y5q5jNSH6u0zobO2hrNUEOLy/exec';
 let orderFinalized=false,purchaseEventFired=false,metaPurchaseEventFired=false,upsellFallbackTimer=null;
 function getProductSku(product){
   const skuMap={
