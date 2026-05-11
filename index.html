@@ -212,11 +212,20 @@ document.querySelectorAll('[data-product]').forEach(b=>{if(b.id==='pickerCta')re
 document.getElementById('closeModal').onclick=()=>modal.classList.remove('show');
 const SHEET_WEBHOOK_URL='https://script.google.com/macros/s/AKfycbwKx4uRHk4F4dow_RVydN0K2R2wWTeQSWhcumFb9rjOTwReuZ9nHNdgSvOz2tt7df5O/exec';
 let orderFinalized=false,purchaseEventFired=false,upsellFallbackTimer=null;
+function getProductSku(product){
+  const skuMap={
+    'Testo Booster':'PMLD-1748',
+    'Nitric Oxide':'PMLD-1742',
+    'Zdraví prostaty':'PMLD-1747',
+    'TRIO Bundle':'PMLD-TRIO-BUNDLE'
+  };
+  return skuMap[product]||'PMLD-UNKNOWN';
+}
 function buildOrderPayload(){
   order.totalPrice=order.price+order.upsellPrice;
   const qty=order.upsell?2:1;
   return {
-    sku:order.product==='TRIO Bundle'?(order.upsell?'SNAP-TRIO-BUNDLE-X2':'SNAP-TRIO-BUNDLE'):'SNAP-'+String(order.product||'PRODUCT').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,''),
+    sku:getProductSku(order.product),
     price:order.totalPrice,
     customer_name:order.name,
     customer_phone:order.phone,
